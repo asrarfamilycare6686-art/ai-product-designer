@@ -1,0 +1,77 @@
+﻿
+import streamlit as st
+import replicate
+import os
+from PIL import Image
+import io
+
+# إعدادات الصفحة
+st.set_page_config(page_title="AI Product Designer", layout="wide")
+
+st.title("🎨 مصمم المنتجات الاحترافي بالذكاء الاصطناعي")
+st.write("ارفع صورة منتجك وصورة الإلهام من الإنترنت ليقوم الذكاء الاصطناعي بدمجهما بشكل احترافي.")
+
+---
+
+# إدخال مفتاح الـ API الخاص بـ Replicate بأمان
+# يمكنك تثبيته في إعدادات المنصة كـ Environment Variable باسم REPLICATE_API_TOKEN
+replicate_api = os.environ.get('REPLICATE_API_TOKEN') or st.sidebar.text_input("أدخل مفتاح Replicate API Token:", type="password")
+
+if not replicate_api:
+    st.info("💡 يرجى إدخال مفتاح Replicate API في الشريحة الجانبية للاستمرار.")
+else:
+    # تعيين المفتاح للمكتبة
+    os.environ["REPLICATE_API_TOKEN"] = replicate_api
+
+    # تقسيم الشاشة إلى عمودين لرفع الصور
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("📦 1. صورة منتجك الأساسي")
+        product_file = st.file_uploader("اختر صورة المنتج (يفضل خلفية بيضاء)", type=["jpg", "jpeg", "png"], key="product")
+        if product_file:
+            st.image(product_file, caption="صورة المنتج المرفوعة", use_container_width=True)
+
+    with col2:
+        st.subheader("🖼️ 2. صورة النمط/الإلهام (من الإنترنت)")
+        style_file = st.file_uploader("اختر الصورة الاحترافية المرجعية", type=["jpg", "jpeg", "png"], key="style")
+        if style_file:
+            st.image(style_file, caption="نمط التصميم المطلوب", use_container_width=True)
+
+    ---
+
+    # صندوق النص لوصف المشهد
+    prompt = st.text_input("📝 وصف إضافي للمشهد (اختياري - بالإنجليزية لنتائج أفضل):", 
+                           placeholder="e.g., A product placed on a luxury wooden table, cinematic lighting, highly detailed studio shot")
+
+    # زر البدء بالتصميم
+    if st.button("🚀 ابدأ التصميم الاحترافي الآن"):
+        if not product_file or not style_file:
+            st.error("❌ رجاءً قم برفع الصورتين معاً قبل الضغط على الزر.")
+        else:
+            with st.spinner("⏳ جاري دمج الصور وتوليد التصميم الاحترافي... قد يستغرق ذلك دقيقة"):
+                try:
+                    # تحويل الملفات المرفوعة إلى روابط مؤقتة أو بايتات يقرأها الـ API
+                    # نستخدم نموذج SDXL مع ControlNet و Image-to-Image للدمج الاحترافي
+                    
+                    output = replicate.run(
+                        "comfyanonymous/comfyui:11511a80b8e70f6c2d1b8c19ef63e3b3e100e401666ff4f3316b23ccf245d7a6", # محرك ComfyUI المتطور
+                        input={
+                            "input_image_1": product_file,  # صورة المنتج الأساسي
+                            "input_image_2": style_file,    # صورة الستايل من النت
+                            "prompt": prompt if prompt else "High quality studio product photography, commercial lighting",
+                            "negative_prompt": "blurry, low quality, distorted, altered product shape",
+                        }
+                    )
+                    
+                    # عرض النتيجة
+                    if output:
+                        st.success("✨ تم توليد التصميم بنجاح!")
+                        # النتيجة غالباً تكون رابط للصورة المتولدة
+                        result_image_url = output[0] if isinstance(output, list) else output
+                        st.image(result_image_url, caption="التصميم الاحترافي الجديد", use_container_width=True)
+                        
+                except Exception as e:
+                    st.error(f"حدث خطأ أثناء المعالجة: {e}")
+                    st.info("تأكد من صحة مفتاح الـ API وصيغ الصور المرفوعة.")
+
